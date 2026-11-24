@@ -40,6 +40,17 @@
         "仅一次",
         "两次及以上"
       ]
+    },
+    {
+      "key": "revision",
+      "label": "更正版本",
+      "type": "integer",
+      "example": 1,
+      "min": 1,
+      "max": 999,
+      "default": 1,
+      "required": false,
+      "help": "首次登记为 1，同一交接单号按版本逐次更正；缺前一版时先挂起，补齐后自动接续。"
     }
   ],
   "parameters": [

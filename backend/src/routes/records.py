@@ -5,12 +5,12 @@ from starlette.concurrency import run_in_threadpool
 
 from src.config.project import SPEC
 from src.constants.enums import Role
-from src.controllers.views import observation_view
+from src.controllers.views import observation_view, workbench_view
 from src.models.base import Session
 from src.models.workflow import Observation
 from src.services.auth import current_user, roles
 from src.services.errors import BusinessError
-from src.services.observations import add_observations, clean_observation, parse_csv
+from src.services.observations import clean_observation, current_workbench, ingest, parse_csv
 from src.utils.formatting import csv_text
 
 router = APIRouter(prefix='/api')
@@ -34,10 +34,19 @@ def index(offset: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100), us
 def create(payload: dict, user=Depends(editor)):
     row = clean_observation(payload)
     with Session.begin() as db:
-        items = add_observations(db, [row], user['sub'], 'observation.created')
-        if not items:
-            raise BusinessError('相同观测已存在，请核对记录', 409)
-        return observation_view(items[0])
+        report = ingest(db, [row], user['sub'], 'observation.created')
+        if not report['added']:
+            if report['conflicts'] or report['skipped']:
+                raise BusinessError('相同观测已存在，请核对记录', 409)
+            raise BusinessError('没有可新增的观测', 409)
+    return {'added': report['added'], 'skipped': report['skipped'], 'conflicts': report['conflicts'],
+            'pending': report['pending'], 'activated': report['activated']}
+
+
+@router.get('/workbench')
+def workbench(user=Depends(current_user)):
+    with Session() as db:
+        return workbench_view(current_workbench(db))
 
 
 @router.get('/observations/template')
@@ -51,8 +60,9 @@ def template(user=Depends(current_user)):
 def import_payload(payload, actor):
     rows = parse_csv(payload)
     with Session.begin() as db:
-        items = add_observations(db, rows, actor, 'observation.imported')
-        return {'added': len(items), 'skipped': len(rows) - len(items)}
+        report = ingest(db, rows, actor, 'observation.imported')
+    return {'added': report['added'], 'skipped': report['skipped'], 'conflicts': report['conflicts'],
+            'pending': report['pending'], 'activated': report['activated']}
 
 
 @router.post('/observations/import')

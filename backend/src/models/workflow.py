@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.constants.enums import RunStatus
+from src.constants.enums import ObservationState, RunStatus
 from src.models.base import Base, utc_now
 
 
@@ -12,6 +12,9 @@ class Observation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     source_key: Mapped[str] = mapped_column(String(96), unique=True)
     payload: Mapped[dict] = mapped_column(JSON)
+    ticket: Mapped[str | None] = mapped_column(String(96), index=True, nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    state: Mapped[str] = mapped_column(String(16), default=ObservationState.EFFECTIVE, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
@@ -68,3 +71,28 @@ class AuditEvent(Base):
     action: Mapped[str] = mapped_column(String(60))
     detail: Mapped[str] = mapped_column(String(200))
     at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class WorkbenchCell(Base):
+    """Latest published metrics for one scanner sample.
+
+    A correction that moves a ticket between scanners rewrites the old and the
+    new scanner cells in the same transaction, so readers never see one without
+    the other.
+    """
+    __tablename__ = 'workbench_cells'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scanner: Mapped[str] = mapped_column(String(120), unique=True)
+    metric: Mapped[dict] = mapped_column(JSON)
+    version: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class WorkbenchMeta(Base):
+    """Singleton holding the published workbench version and rendered result."""
+    __tablename__ = 'workbench_meta'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, default=0)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    stale: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

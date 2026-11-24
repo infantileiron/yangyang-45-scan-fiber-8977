@@ -4,11 +4,12 @@ import logging
 from sqlalchemy import select
 
 from src.config.project import SPEC
-from src.constants.enums import Decision, Role, RunStatus
+from src.constants.enums import Decision, ObservationState, Role, RunStatus
 from src.domain.analysis import analyze
 from src.models.base import utc_now
 from src.models.workflow import AnalysisRun, AuditEvent, Observation, Review
 from src.services.errors import BusinessError
+from src.services.observations import current_workbench
 from src.services.validation import validated
 
 logger = logging.getLogger(__name__)
@@ -16,8 +17,14 @@ logger = logging.getLogger(__name__)
 
 def create_run(db, request, actor):
     parameters = validated(SPEC['parameters'], request.parameters, defaults=True)
-    sample_ids = list(db.scalars(select(Observation.id).order_by(Observation.id)))
+    sample_ids = list(db.scalars(select(Observation.id)
+                                 .where(Observation.state == ObservationState.EFFECTIVE)
+                                 .order_by(Observation.id)))
     if not sample_ids:
+        waiting = db.scalar(select(Observation.id)
+                            .where(Observation.state == ObservationState.PENDING).limit(1))
+        if waiting:
+            raise BusinessError('更正记录还在等前一版，补齐后再提交计算', 409)
         raise BusinessError('请先导入观测记录')
     item = AnalysisRun(title=request.title, owner=actor, parameters=parameters, observation_ids=sample_ids,
                        last_observation_id=sample_ids[-1], sample_size=len(sample_ids))

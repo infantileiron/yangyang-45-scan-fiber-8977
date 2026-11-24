@@ -1,3 +1,4 @@
+from src.constants.enums import ObservationState
 from src.utils.formatting import timestamp
 
 
@@ -17,7 +18,18 @@ def run_view(item, review=None, *, include_result=False):
 
 
 def observation_view(item):
-    return {'id': item.id, 'data': item.payload, 'created_at': timestamp(item.created_at)}
+    return {'id': item.id, 'data': item.payload, 'ticket': item.ticket, 'revision': item.revision,
+            'state': item.state, 'state_label': _STATE_LABELS.get(item.state, item.state),
+            'created_at': timestamp(item.created_at)}
+
+
+_STATE_LABELS = {ObservationState.EFFECTIVE: '已生效', ObservationState.SUPERSEDED: '已被更正',
+                 ObservationState.PENDING: '待补齐前一版'}
+
+
+def workbench_view(snapshot):
+    return {'version': snapshot['version'], 'result': snapshot['result'], 'pending': snapshot['pending'],
+            'updated_at': timestamp(snapshot['updated_at'])}
 
 
 def schedule_view(item):

@@ -12,7 +12,13 @@ def _validate_fields(values, fields, *, defaults=False):
     result = {}
     for field in fields:
         key = field["key"]
-        value = values.get(key, field.get("default") if defaults else None)
+        fallback = field.get("default")
+        value = values.get(key, fallback)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            if field.get("required", True) is False and fallback is not None:
+                value = fallback
+            elif field.get("required", True) is False:
+                continue
         kind = field["type"]
         if kind == "number" or kind == "integer":
             valid = type(value) in (int, float) and isfinite(value) and field["min"] <= value <= field["max"]
@@ -69,8 +75,10 @@ def _output(headline, summary, columns, rows, metrics, chart_name, chart_unit, c
 FIBER = ("无", "轻", "重")
 REDO = ("无需", "仅一次", "两次及以上")
 COLUMNS = (("scanner", "扫描台"), ("n", "交接样本"), ("gamma", "飞白与返扫 γ"),
-           ("concordant", "同向单对"), ("discordant", "反向单对"),
+           ("concordant", "同向单对"), ("discordant", "反向单对"), ("tied", "并列单对"),
            ("tied_pct", "等级并列（%）"), ("decision", "复核说明"))
+HEADLINE = "纸纹飞白与返扫负担等级关联"
+SUMMARY = "同一台的同向对和反向对才参与比较。等级并列比例提示覆盖范围，关联强度用于安排原画复核。"
 
 
 def _agreement(group):
@@ -84,36 +92,58 @@ def _agreement(group):
                 opposite += n * m
     comparable = together + opposite
     pairs = comb(len(group), 2)
-    return together, opposite, (together - opposite) / comparable if comparable else None, 100 * (pairs - comparable) / pairs
+    tied = pairs - comparable
+    gamma = (together - opposite) / comparable if comparable else None
+    return together, opposite, tied, pairs, gamma
+
+
+def scanner_metrics(scanner, group, minimum):
+    """Summarise one scanner sample as comparable (concordant/discordant) and tied pairs."""
+    n = len(group)
+    if n < minimum:
+        return {"scanner": scanner, "n": n, "short": True, "concordant": None, "discordant": None,
+                "tied": None, "pairs": None, "gamma": None, "tied_pct": None, "decision": "补齐交接样本"}
+    together, opposite, tied, pairs, gamma = _agreement(group)
+    decision = "等级无可比较对" if gamma is None else (
+        "抽查飞白重与返扫多的原画" if gamma > 0.5 else "与曝光工位共同核对")
+    return {"scanner": scanner, "n": n, "short": False, "concordant": together, "discordant": opposite,
+            "tied": tied, "pairs": pairs, "gamma": gamma,
+            "tied_pct": 100 * tied / pairs if pairs else 0.0, "decision": decision}
+
+
+def _row(metric):
+    return {"scanner": metric["scanner"], "n": metric["n"],
+            "gamma": _shown(metric["gamma"], 4), "concordant": metric["concordant"],
+            "discordant": metric["discordant"], "tied": metric["tied"],
+            "tied_pct": _shown(metric["tied_pct"]), "decision": metric["decision"]}
+
+
+def render_result(scanners):
+    """Render ordered per-scanner metrics into the result payload shared by runs and the workbench."""
+    ordered = sorted(scanners, key=lambda item: item["scanner"])
+    detail = [_row(item) for item in ordered]
+    eligible = [item for item in ordered if not item["short"] and item["gamma"] is not None]
+    same = sum(item["concordant"] for item in eligible)
+    opposite = sum(item["discordant"] for item in eligible)
+    return _output(HEADLINE, SUMMARY, COLUMNS, detail,
+                   [("可估计扫描台", len(eligible), "台"), ("同向单对", same, "对"), ("反向单对", opposite, "对")],
+                   "各台飞白与返扫 γ", "", [(item["scanner"], _shown(item["gamma"], 4)) for item in eligible])
+
+
+def group_by_scanner(rows):
+    groups = defaultdict(list)
+    for row in rows:
+        groups[row["scanner"]].append(row)
+    return groups
 
 
 def analyze(rows, parameters):
     rows, options = _inputs(rows, parameters)
-    groups = defaultdict(list)
-    for row in rows:
-        groups[row["scanner"]].append(row)
+    groups = group_by_scanner(rows)
     minimum = options["minimum"]
     if not any(len(group) >= minimum for group in groups.values()):
         raise ValueError("无扫描台达到最少记录数")
-    detail = []
-    for scanner, group in sorted(groups.items()):
-        if len(group) < minimum:
-            detail.append({"scanner": scanner, "n": len(group), "gamma": "—", "concordant": "—",
-                           "discordant": "—", "tied_pct": "—", "decision": "补齐交接样本"})
-            continue
-        concordant, discordant, gamma, tied = _agreement(group)
-        decision = "等级无可比较对" if gamma is None else (
-            "抽查飞白重与返扫多的原画" if gamma > 0.5 else "与曝光工位共同核对")
-        detail.append({"scanner": scanner, "n": len(group), "gamma": _shown(gamma, 4),
-                       "concordant": concordant, "discordant": discordant,
-                       "tied_pct": _shown(tied), "decision": decision})
-    eligible = [item for item in detail if item["gamma"] != "—"]
-    same = sum(item["concordant"] for item in eligible)
-    opposite = sum(item["discordant"] for item in eligible)
-    return _output("纸纹飞白与返扫负担等级关联", "同一台的同向对和反向对才参与比较。等级并列比例提示覆盖范围，关联强度用于安排原画复核。",
-                   COLUMNS, detail,
-                   [("可估计扫描台", len(eligible), "台"), ("同向单对", same, "对"), ("反向单对", opposite, "对")],
-                   "各台飞白与返扫 γ", "", [(item["scanner"], item["gamma"]) for item in eligible])
+    return render_result([scanner_metrics(scanner, group, minimum) for scanner, group in sorted(groups.items())])
 
 
 def seed():

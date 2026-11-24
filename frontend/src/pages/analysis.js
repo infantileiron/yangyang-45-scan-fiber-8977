@@ -15,12 +15,23 @@ export function runTable(runs, message) {
   ], runs, message);
 }
 
+export function workbenchPanel(snapshot) {
+  const data = snapshot.result || {};
+  const pending = snapshot.pending
+    ? `<p class="aside-note">还有 ${esc(snapshot.pending)} 条更正记录缺前一版，挂起中。补齐后两台样本会一次性切换。</p>` : '';
+  return `<section class="panel" id="workbench" data-version="${snapshot.version}"><div class="panel-heading"><h2>分析工作台 · 当前已发布</h2><span class="count">v${esc(snapshot.version)}</span></div>
+    ${data.headline ? `<div class="panel-body"><h3>${esc(data.headline)}</h3><p>${esc(data.summary)}</p></div>` : ''}
+    ${table(data.columns || [], data.rows || [], '当前没有已生效的观测。')}
+    ${pending}</section>`;
+}
+
 export async function analysisPage(spec, user) {
-  const runs = await get('/runs');
+  const [runs, workbench] = await Promise.all([get('/runs'), get('/workbench')]);
   return `${intro('分析任务', spec.algorithm)}<div class="split"><section class="panel"><div class="panel-heading"><h2>计算条件</h2></div>
     ${user.role === Role.ANALYST ? `<form id="run-form" class="panel-body"><label class="field"><span>分析名称</span><input name="title" required maxlength="120" value="${esc(spec.direction)}复核"></label><div class="form-grid">${spec.parameters.map(parameter => fieldControl(parameter,true)).join('')}</div>${formError}<button class="primary">提交计算</button></form>` : '<p class="panel-body">由业务分析员提交计算。此账号可查看当前角色有权访问的分析任务。</p>'}</section>
     <aside class="method"><h2>计算口径</h2><p>${esc(spec.formula)}</p><p class="aside-note">提交时固化参与计算的观测清单，后续导入不会改变历史结果。</p></aside></div>
-    <section class="panel"><div class="panel-heading"><h2>历史分析</h2></div>${runTable(runs, '还没有可查看的分析。提交计算后可在这里追踪。')}</section>`;
+    <section class="panel"><div class="panel-heading"><h2>历史分析</h2></div>${runTable(runs, '还没有可查看的分析。提交计算后可在这里追踪。')}</section>
+    ${workbenchPanel(workbench)}`;
 }
 
 export function wireAnalysis(root, spec) {
