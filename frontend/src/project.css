@@ -1,0 +1,13 @@
+:root {
+  --ink: oklch(.235 .045 105);
+  --paper: oklch(.954 .022 105);
+  --light: oklch(.988 .009 105);
+  --accent: oklch(.415 .105 105);
+  --wash: oklch(.917 .035 105);
+  --grid: oklch(.96 .020 105 / .15);
+  --sheet-pattern: linear-gradient(0deg, transparent 70%, var(--grid) 72%, transparent 77%);
+  --sheet-size: 34px 34px;
+  --radius: 0px;
+  --login-ratio: 1.36fr 1fr;
+  --split-left: 1.40fr;
+}

@@ -1,0 +1,14 @@
+{
+  "slug": "yangyang-45-scan-fiber",
+  "title": "墨桥动画·扫描纸纹返工关联",
+  "direction": "有序关联与同向比例",
+  "layout": "editorial",
+  "theme": "碳灰色逐帧扫描底表",
+  "recipient": "扫描返工核对班",
+  "work_modules": [
+    "动画帧扫描记录",
+    "纸纹等级与返扫等级",
+    "并列尺度诊断"
+  ],
+  "follow_latest": false
+}

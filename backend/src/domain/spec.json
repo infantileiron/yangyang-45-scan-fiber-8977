@@ -1,0 +1,55 @@
+{
+  "organization": "墨桥手绘动画扫描组（9 人）",
+  "tagline": "核对原画飞白和返扫负担的有序关系，分台比较同向与反向比例。",
+  "source": "《桥巷镜头扫描记录.csv》与质检流转备注",
+  "record_name": "扫描交接记录",
+  "algorithm": "Goodman–Kruskal γ 有序关联",
+  "formula": "每台将两条三档等级汇总成三乘三列联表，然后计同向对 C 和反向对 D。γ=(C−D)/(C+D)，任一维度并列单列，C+D 为零时显示无法估计。",
+  "decision_prompt": "哪台在飞白更重时通常伴随更高的返扫负担，等级并列是否削弱了证据？",
+  "fields": [
+    {
+      "key": "ticket",
+      "label": "交接单号",
+      "type": "text",
+      "example": "MQ-X01"
+    },
+    {
+      "key": "scanner",
+      "label": "扫描台",
+      "type": "text",
+      "example": "东列 A"
+    },
+    {
+      "key": "fiber",
+      "label": "原画纸纹飞白",
+      "type": "choice",
+      "example": "轻",
+      "choices": [
+        "无",
+        "轻",
+        "重"
+      ]
+    },
+    {
+      "key": "redo",
+      "label": "返扫负担",
+      "type": "choice",
+      "example": "仅一次",
+      "choices": [
+        "无需",
+        "仅一次",
+        "两次及以上"
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "key": "minimum",
+      "label": "最少单台记录",
+      "type": "integer",
+      "min": 4,
+      "max": 30,
+      "default": 8
+    }
+  ]
+}
